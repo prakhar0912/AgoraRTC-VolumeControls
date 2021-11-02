@@ -23,26 +23,37 @@ const Content = () => {
     token: null,
   };
 
+  const modifyGain = (stream, gainValue) => {
+    var ctx = new AudioContext();
+    var src = ctx.createMediaStreamSource(stream);
+    var dst = ctx.createMediaStreamDestination();
+    var gainNode = ctx.createGain();
+    gainNode.gain.value = gainValue;
+    [src, gainNode, dst].reduce((a, b) => a && a.connect(b));
+    return dst.stream;
+  };
+
   let init = async (name, appId) => {
     rtc.current.client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
     initClientEvents()
     const uid = await rtc.current.client.join(appId, name, options.token, null);
     // Create an audio track from the audio sampled by a microphone.
-    let option = false
+    let option = true
     if (option === true) {
-      const media = await navigator.mediaDevices.getUserMedia({ video: false, audio: true })
-      let audioTrack = media.getAudioTracks()[0]
-      rtc.current.localAudioTrack = await AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: audioTrack });
       //You can manipulate the audioTrack here
+      const media = await navigator.mediaDevices.getUserMedia({ video: false, audio: true })
+      let audioStream = modifyGain(media, 100)
+      let audioTrack = audioStream.getAudioTracks()[0]
+      rtc.current.localAudioTrack = AgoraRTC.createCustomAudioTrack({ mediaStreamTrack: audioTrack });
     }
     else {
       //Agora provided audio manipulation
       rtc.current.localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
-        // encoderConfig: {
-        //   sampleRate: 48000,
-        //   stereo: true,
-        //   bitrate: 128,
-        // },
+        encoderConfig: {
+          sampleRate: 48000,
+          stereo: true,
+          bitrate: 128,
+        },
       })
       // rtc.current.localAudioTrack.setVolume(10)
     }
@@ -67,7 +78,7 @@ const Content = () => {
 
 
     rtc.current.client.on("user-published", async (user, mediaType) => {
-      
+
       await rtc.current.client.subscribe(user, mediaType);
 
       if (mediaType === "video") {
@@ -160,13 +171,13 @@ export const Video = ({ user }) => {
   const vidDiv = useRef(null)
 
   const playVideo = () => {
-    if(user.videoTrack){
+    if (user.videoTrack) {
       user.videoTrack.play(vidDiv.current)
     }
   }
 
   const stopVideo = () => {
-    if(user.videoTrack){
+    if (user.videoTrack) {
       user.videoTrack.stop()
     }
   }
@@ -268,10 +279,13 @@ export const Controls = ({ user }) => {
 
   return (
     <div className='controls'>
+      {/* Button to Mute/Unmute Mic */}
       {<p className={user.audio ? 'on' : ''} onClick={() => user.client && mute('audio', user.uid)}>{user.client && speaking && !user.audio ? 'Mic(Unmute if Speaking)' : 'Mic'}</p>}
+      {/* Button to Mute/Unmute Video */}
       {<p className={user.video ? 'on' : ''} onClick={() => user.client && mute('video', user.uid)}>Video</p>}
       {<input type="number" placeholder="Volume" onChange={(e) => { let vol = parseInt(e.target.value); !isNaN(vol) && vol >= 0 && vol <= 1000 && (user.audioTrack.setVolume(parseInt(e.target.value))) }} />}
       {user.client && <p onClick={() => leaveChannel()}>Quit</p>}
+      {/* Button to quit call if client */}
     </div>
   )
 }
